@@ -3,6 +3,10 @@ import java.util.Set;
 import java.util.Arrays;
 import java.util.HashSet;
 import org.tartarus.snowball.ext.PorterStemmer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.ArrayList;
+import java.util.List;
 
 
 public class QueryProcessor {
@@ -16,8 +20,6 @@ public class QueryProcessor {
     static final Set<String> stopWordsSet = new HashSet<>(Arrays.asList(stopWords));
     static final Set<Character> punctuationsSet = new HashSet<>(Arrays.asList(punctuations));
     
-    PhraseSearcher phraseSearcher = new PhraseSearcher();
-
     QueryProcessor(){
         
     }
@@ -25,23 +27,9 @@ public class QueryProcessor {
 
     public String ProcessQuery(String query) {
         return PreProcessQuery(query);
-/*        System.out.println("Query after preprocessing: " + query);
-        if (phrases != null) {
-            System.out.println("Phrases:");
-            for (String phrase : phrases) {
-                System.out.println(phrase);
-            }
-        }
-        // TODO: process query and phrases
-        // just call phraseSearcher.ProcessPhrase(phrase) for each phrase and process query normally
-*/
     }
 
     private String PreProcessQuery (String query) {
-        if (phraseSearcher.HasPhrases(query)) {
-            phrases = phraseSearcher.GetPhrases(query);
-            query = phraseSearcher.RemovePhrases(query);
-        }
         query = query.toLowerCase();
         query = removeStopWords(query);
         query = removePunctuation(query);
@@ -76,6 +64,7 @@ public class QueryProcessor {
         }
         return result.toString().trim();
     }
+    
     public static String stem(String word){
         PorterStemmer porterStemmer = new PorterStemmer();
         porterStemmer.setCurrent(word);
@@ -83,37 +72,6 @@ public class QueryProcessor {
         return porterStemmer.getCurrent();
     }
 
-    private class PhraseSearcher {
-
-        PhraseSearcher() {
-            // Empty constructor
-        }
-
-        public Boolean HasPhrases (String query) {
-            return query.contains("\"");
-        }
-
-        public String[] GetPhrases (String query) {
-            String[] phrases = query.split("\"");
-            System.out.println("Phrases:");
-            for (String phrase : phrases) {
-                System.out.println(phrase);
-            }
-            return phrases;
-        }
-
-        public String RemovePhrases (String query) {
-            for (String phrase : phrases) {
-                query = query.replace("\"" + phrase + "\"", "");
-            }
-            return query;
-        }
-
-        public void ProcessPhrase (String phrase) {
-            // TODO: process phrase
-        }
-    
-    }
 
 }
 

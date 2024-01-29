@@ -7,30 +7,14 @@ const SearchEngine = () => {
     const [searchTime, setSearchTime] = useState('');
 
     const performSearch = (query) => {
-        // TODO: Perform search engine request
+        if (!query) return;
         
-        const mockResults = [
-            {
-                title: 'Example Website 1',
-                url: 'https://www.example.com/1',
-                snippet: 'This is an example snippet containing the query words.',
-            },
-            {
-                title: 'Example Website 2',
-                url: 'https://www.example.com/2',
-                snippet: 'Another example snippet with the query words highlighted.',
-            },
-        ];
-
-        setResults(mockResults);
-        setSearchTime(new Date().toLocaleTimeString());
     };
 
     return (
         <div>
-            <SearchBar onSearch={performSearch} />
+            <SearchBar onSearch={performSearch} setSearchTime={setSearchTime} />
             <p>Search time: {searchTime}</p>
-            <SearchResults results={results} />
         </div>
     );
 };

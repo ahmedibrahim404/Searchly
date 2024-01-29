@@ -79,31 +79,52 @@ public class Indexer implements Runnable {
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             StringBuilder document = new StringBuilder();
             String line;
+            String URL = reader.readLine();
             while ((line = reader.readLine()) != null) {
                 document.append(line).append("\n");
             }
             // Process the collected document as needed
             System.out.println("File Name: " + file);
-            parseHTML(document.toString(), file.getName());
+            parseHTML(document.toString(), URL);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
      private static void parseHTML(String htmlContent, String fileName) {
         Document docc = Jsoup.parse(htmlContent);
-        Map<String, Map<String, Double>> invertedIndex = new HashMap<>();
-        scoreWords(docc.body(), invertedIndex, 1.0, fileName);
+        Map<String, Map<String, word_par>> invertedIndex = new HashMap<>();
+        Integer cnt = getWordsNumber(docc.body(), invertedIndex, fileName);
+        scoreWords(docc.body(), invertedIndex, 1.0, fileName, cnt);
         printInvertedIndex(invertedIndex);
         uploadToDB(invertedIndex);
     }
 
-    private static void scoreWords(Element element, Map<String, Map<String, Double>> invertedIndex, double currentScore, String docName) {
+    private static Integer getWordsNumber(Element element, Map<String, Map<String, word_par>> invertedIndex, String docName) {
+        if (element == null) {
+            return 0;
+        }
+
+        Integer ans = 0;
+        for (Element child : element.children()) {
+            ans += getWordsNumber(child, invertedIndex, docName);
+        }
+
+        String text = element.ownText().trim();
+        if (!text.isEmpty()) {
+            String[] words = text.split("\\s+");
+            ans += words.length;
+        }
+
+        return ans;
+    }
+
+    private static void scoreWords(Element element, Map<String, Map<String, word_par>> invertedIndex, double currentScore, String docName, Integer cnt) {
         if (element == null) {
             return;
         }
 
         for (Element child : element.children()) {
-            scoreWords(child, invertedIndex, currentScore * getElementScore(child), docName);
+            scoreWords(child, invertedIndex, currentScore * getElementScore(child), docName, cnt);
         }
 
         String text = element.ownText().trim();
@@ -112,7 +133,12 @@ public class Indexer implements Runnable {
             String[] words = text.split("\\s+");
             for (String word : words) {
                 word = qp.ProcessQuery(word);
-                invertedIndex.computeIfAbsent(word, k -> new HashMap<>()).merge(docName, score, Double::sum);
+                if(word.equals("")) continue;
+                word_par w = new word_par();
+                w.score=score;
+                w.size=cnt;
+                w.TF=1;
+                invertedIndex.computeIfAbsent(word, k -> new HashMap<>()).merge(docName, w, word_par::sum);
             }
         }
     }
@@ -163,20 +189,20 @@ public class Indexer implements Runnable {
     }
 
 
-    private static void printInvertedIndex(Map<String, Map<String, Double>> invertedIndex) {
-        for (Map.Entry<String, Map<String, Double>> entry : invertedIndex.entrySet()) {
+    private static void printInvertedIndex(Map<String, Map<String, word_par>> invertedIndex) {
+        for (Map.Entry<String, Map<String, word_par>> entry : invertedIndex.entrySet()) {
             String word = entry.getKey();
-            Map<String, Double> documentScores = entry.getValue();
+            Map<String, word_par> documentScores = entry.getValue();
             System.out.println("Word: " + word);
-            for (Map.Entry<String, Double> docEntry : documentScores.entrySet()) {
+            for (Map.Entry<String, word_par> docEntry : documentScores.entrySet()) {
                 String docName = docEntry.getKey();
-                double score = docEntry.getValue();
-                System.out.println("\tDocName: " + docName + ", Score: " + score);
+                word_par wordPar = docEntry.getValue();
+                System.out.println("\tDocName: " + docName + ", Score: " + wordPar.score);
             }
         }
     }
 
-    public static void uploadToDB(Map<String, Map<String, Double>> invertedIndex) {
+    public static void uploadToDB(Map<String, Map<String, word_par>> invertedIndex) {
         mongoDBClient.uploadIndexer(invertedIndex);
         System.out.println("Upload to MongoDB completed.");
     }

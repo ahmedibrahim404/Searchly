@@ -20,9 +20,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListSet;
 
+import java.util.HashMap;
+
+import java.net.MalformedURLException;
+import java.net.URL;
+
+
 public class Crawler implements Runnable {
 
-    private final int MAX_WEB_PAGES = 5;
+    private final int MAX_WEB_PAGES = 200;
 
     private Set<String> pagesVisited = new ConcurrentSkipListSet<>();
     private Queue<String> pagesToVisit = new ConcurrentLinkedQueue<>();
@@ -30,13 +36,34 @@ public class Crawler implements Runnable {
     private Object getContentLock = new Object();
     private Object pagesVisitedLock = new Object();
     private Object pagesToVisitLock = new Object();
-    
+    private Object pagesPopularityLock = new Object();
+
+    private HashMap<String, Integer> PagesPopularity = new HashMap<>();
+   
     MongoDB mongoDBClient = new MongoDB();
     RobotObject robotObject = new RobotObject();
 
     public Crawler() {
         mongoDBClient.connectToDatabase();
     }
+
+    private String removePath(String urlString) {
+        try {
+            URL url = new URL(urlString);
+            String protocol = url.getProtocol();
+            String host = url.getHost();
+            int port = url.getPort();
+            String result = protocol + "://" + host;
+            if (port != -1) {
+                result += ":" + port;
+            }
+            return result;
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+            return urlString; 
+        }
+    }
+
 
     @Override
     public void run() {
@@ -96,7 +123,7 @@ public class Crawler implements Runnable {
 
                         pagesVisited.add(normalizedUrl);
                         System.out.println("Visited " + normalizedUrl);
-                        mongoDBClient.updatePagesVisited(normalizedUrl);
+                        mongoDBClient.updatePagesVisited(normalizedUrl, doc.html(), doc.title());
 
                         synchronized (getContentLock) {
                             getPageContent(doc, normalizedUrl);
@@ -124,6 +151,15 @@ public class Crawler implements Runnable {
                                 if (pagesVisited.contains(normalizedNextUrl)) {
                                     continue;
                                 }
+                                
+                                synchronized (pagesPopularityLock) {
+                                    if (PagesPopularity.containsKey(removePath(normalizedNextUrl))) {
+                                        PagesPopularity.put(removePath(normalizedNextUrl), PagesPopularity.get(removePath(normalizedNextUrl)) + 1);
+                                    } else {
+                                        PagesPopularity.put(removePath(normalizedNextUrl), 1);
+                                    }
+                                }
+
 
                                 synchronized (pagesToVisitLock) {
                                     pagesToVisit.add(normalizedNextUrl);
@@ -144,6 +180,9 @@ public class Crawler implements Runnable {
         }
         System.out.println(Thread.currentThread().getName() + " has finished..");
     }
+
+
+
 
     public void crawl() {
         if (mongoDBClient.getState().equals("crawling")) {
@@ -174,11 +213,14 @@ public class Crawler implements Runnable {
             System.out.println("Error: " + e.getMessage());
         }
 
+        mongoDBClient.InsertPagePopularity(PagesPopularity, pagesVisited);
         mongoDBClient.setState("idle");
 
         System.out.println("Overall pages visited = " + pagesVisited.size());
         System.out.println("Crawling finished..");
     }
+
+
 
     private void getSeed() {
         try {
